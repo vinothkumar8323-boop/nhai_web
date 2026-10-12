@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NHAI - CCMS Street Light Lamp Failure & Performance Dashboard</title>
+  
+  <!-- SEO & Social Meta -->
+  <meta name="description" content="National Highways Authority of India (NHAI) PIU Chengalpattu CCMS Street Light Lamp Failure, Burning & Non-Burning Performance Dashboard">
+  <meta name="author" content="NHAI PIU Chengalpattu">
+  <link rel="icon" type="image/svg+xml" href="/static/images/nhai_logo.svg">
+
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+
+  <!-- Top Authority Banner & Live Status Strip -->
+  <header class="nhai-topbar" id="topbar">
+    <div class="topbar-container">
+      <div class="brand-section">
+        <img src="/static/images/nhai_logo.svg" alt="NHAI PIU Chengalpattu" class="nhai-logo-img">
+      </div>
+
+      <!-- Live Telemetry Monitor Badge -->
+      <div class="telemetry-status-strip">
+        <div class="pulse-badge">
+          <span class="pulse-dot"></span>
+          <span>LIVE TELEMETRY</span>
+        </div>
+        <div class="telemetry-meta-item">
+          <span>Date:</span>
+          <strong>{{ summary.metadata.operational_date }}</strong>
+        </div>
+        <div class="telemetry-meta-item">
+          <span>PIU:</span>
+          <strong>{{ summary.metadata.piu }}</strong>
+        </div>
+        <div class="telemetry-meta-item">
+          <span>Panels:</span>
+          <strong>{{ summary.kpis.total_panels }} Monitored</strong>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="topbar-actions">
+        <button class="btn btn-secondary" id="openUploadModalBtn" title="Upload new telemetry data (.xlsx)">
+          📤 Upload Excel
+        </button>
+        <a href="/api/export/csv" class="btn btn-secondary" title="Export CCMS inventory as CSV">
+          📥 Export CSV
+        </a>
+        <button class="btn btn-secondary" id="printReportBtn" title="Print executive briefing / Save as PDF">
+          🖨️ Print Report
+        </button>
+        <button class="icon-btn" id="themeToggleBtn" title="Toggle Theme (Dark / Light)">
+          ☀️
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="dashboard-nav" aria-label="Dashboard views">
+    <div class="nav-container">
+      <button class="nav-tab active" data-tab="tab-overview" id="navTabOverview">
+        📊 Overview &amp; Telemetry
+      </button>
+      <button class="nav-tab" data-tab="tab-priority" id="navTabPriority">
+        ⚡ Priority Action List &amp; SLA Simulator
+        <span class="tab-badge">Top 15 Hotspots</span>
+      </button>
+      <button class="nav-tab" data-tab="tab-panels" id="navTabPanels">
+        🗂️ CCMS Panel Inventory
+        <span class="tab-badge">{{ summary.kpis.total_panels }} Panels</span>
+      </button>
+      <button class="nav-tab" data-tab="tab-directives" id="navTabDirectives">
+        📑 Executive Directives &amp; Action Plan
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Dashboard Container -->
+  <main class="dashboard-main">
+
+    <!-- ====================================================================
+         TAB 1: OVERVIEW & TELEMETRY
+         ==================================================================== -->
+    <section class="tab-content active" id="tab-overview">
+
+      <!-- Executive KPI Grid -->
+      <div class="kpi-grid">
+        <!-- Card 1: Monitored CCMS Panels -->
+        <div class="kpi-card kpi-primary">
+          <div class="kpi-header">
+            <span class="kpi-title">Total CCMS Monitored</span>
+            <span class="kpi-icon">📡</span>
+          </div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">{{ summary.kpis.total_panels }}</span>
+            <span class="kpi-unit">Panels</span>
+          </div>
+          <div class="kpi-subtext">
+            <span class="kpi-badge badge-blue">100% Online</span>
+            <span>All circuits reporting</span>
+          </div>
+        </div>
+
+        <!-- Card 2: Connected Lamps -->
+        <div class="kpi-card kpi-gold">
+          <div class="kpi-header">
+            <span class="kpi-title">Connected Lamps</span>
+            <span class="kpi-icon">💡</span>
+          </div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">{{ "{:,}".format(summary.kpis.total_connected_lamps) }}</span>
+            <span class="kpi-unit">Fixtures</span>
+          </div>
+          <div class="kpi-subtext">
+            <span class="kpi-badge badge-warning">{{ summary.kpis.connected_load_kw }} kW</span>
+            <span>Total Highway Load</span>
+          </div>
+        </div>
+
+        <!-- Card 3: Burning Lamps (Active) -->
+        <div class="kpi-card kpi-success">
+          <div class="kpi-header">
+            <span class="kpi-title">Burning Lamps (Active)</span>
+            <span class="kpi-icon">✨</span>
+          </div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">{{ "{:,}".format(summary.kpis.burning_lamps) }}</span>
+            <span class="kpi-unit">Active</span>
+          </div>
+          <div class="kpi-subtext">
+            <span class="kpi-badge badge-success">{{ summary.kpis.burning_percentage }}%</span>
+            <span>Corridor Burning Ratio</span>
+          </div>
+        </div>
+
+        <!-- Card 4: Non-Burning Outages -->
+        <div class="kpi-card kpi-danger">
+          <div class="kpi-header">
+            <span class="kpi-title">Non-Burning (Failures)</span>
+            <span class="kpi-icon">⚠️</span>
+          </div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">{{ summary.kpis.non_burning_lamps }}</span>
+            <span class="kpi-unit">Lamps Down</span>
+          </div>
+          <div class="kpi-subtext">
+            <span class="kpi-badge badge-danger">{{ summary.kpis.non_burning_percentage }}% Outage Ratio</span>
+            <span>Deficit fixtures</span>
+          </div>
+        </div>
+
+        <!-- Card 5: Unserved Electrical Load Deficit -->
+        <div class="kpi-card kpi-danger">
+          <div class="kpi-header">
+            <span class="kpi-title">Non-Burning Load Loss</span>
+            <span class="kpi-icon">⚡</span>
+          </div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">{{ summary.kpis.deficit_load_kw }}</span>
+            <span class="kpi-unit">kW</span>
+          </div>
+          <div class="kpi-subtext">
+            <span class="kpi-badge badge-danger">9.89% Load Deficit</span>
+            <span>Recorded: {{ summary.kpis.recorded_load_kw }} kW</span>
+          </div>
+        </div>
+
+        <!-- Card 6: Network SLA Target Status -->
+        <div class="kpi-card {% if summary.kpis.sla_met %}kpi-success{% else %}kpi-warning{% endif %}">
+          <div class="kpi-header">
+            <span class="kpi-title">Network SLA Status</span>
+            <span class="kpi-icon">🎯</span>
+          </div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">{{ summary.kpis.burning_percentage }}%</span>
+            <span class="kpi-unit">SLA Target &gt;95%</span>
+          </div>
+          <div class="kpi-subtext">
+            {% if summary.kpis.sla_met %}
+              <span class="kpi-badge badge-success">✓ SLA Compliant</span>
+            {% else %}
+              <span class="kpi-badge badge-warning">⚠ {{ summary.kpis.sla_gap_percentage }}% SLA Deficit</span>
+              <span>Action required</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Section Performance Operational Grid -->
+      <h3 style="font-family: var(--font-display); font-size: 1.15rem; margin-bottom: 1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+        <span>🛣️ Section &amp; Corridor Operational Breakdown</span>
+      </h3>
+      <div class="section-grid">
+        {% for sec in summary.sections %}
+        <div class="section-card">
+          <div>
+            <div class="section-card-header">
+              <h4 class="section-name">{{ sec.section }}</h4>
+              <span class="ward-tag">Ward {{ sec.ward }}</span>
+            </div>
+            
+            <div class="section-metrics-row">
+              <div class="sec-metric-item">
+                <span>Panels</span>
+                <strong>{{ sec.panels_count }}</strong>
+              </div>
+              <div class="sec-metric-item">
+                <span>Active Lamps</span>
+                <strong style="color: var(--status-green);">{{ "{:,}".format(sec.burning_lamps) }}</strong>
+              </div>
+              <div class="sec-metric-item">
+                <span>Outages</span>
+                <strong style="color: {% if sec.non_burning_lamps > 0 %}var(--status-red){% else %}var(--text-muted){% endif %};">
+                  {{ sec.non_burning_lamps }}
+                </strong>
+              </div>
+            </div>
+
+            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.75rem; display: flex; justify-content: space-between;">
+              <span>Connected: <strong>{{ sec.connected_load_kw }} kW</strong></span>
+              <span>Deficit: <strong style="color: var(--status-red);">{{ sec.non_burning_load_kw }} kW</strong></span>
+            </div>
+          </div>
+
+          <div class="progress-container">
+            <div class="progress-label-row">
+              <span>Burning Efficiency</span>
+              <strong style="color: {% if sec.burning_percentage >= 95 %}var(--status-green){% elif sec.burning_percentage >= 90 %}var(--status-amber){% else %}var(--status-red){% endif %};">
+                {{ sec.burning_percentage }}%
+              </strong>
+            </div>
+            <div class="progress-track">
+              <div class="progress-bar-fill {% if sec.burning_percentage >= 95 %}progress-success{% elif sec.burning_percentage >= 90 %}progress-warning{% else %}progress-danger{% endif %}"
+                   style="width: {{ sec.burning_percentage }}%;"></div>
+            </div>
+            <div style="margin-top: 0.5rem; text-align: right;">
+              <span class="kpi-badge {% if 'EXCELLENT' in sec.status %}badge-success{% elif 'OPTIMAL' in sec.status %}badge-blue{% else %}badge-danger{% endif %}">
+                {{ sec.status }}
+              </span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Charts Row 1 -->
+      <div class="charts-grid">
+        <!-- Chart 1: Donut Lamp Health -->
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <div class="chart-title">
+              <span>🍩 Network Lamp Health Ratio (Burning vs Outages)</span>
+            </div>
+            <span class="kpi-badge badge-blue">Corridor Overview</span>
+          </div>
+          <div class="chart-canvas-wrapper">
+            <canvas id="networkHealthChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 2: Section Breakdown -->
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <div class="chart-title">
+              <span>📊 Section-Wise Operational Lamp Distribution</span>
+            </div>
+            <span class="kpi-badge badge-blue">Comparative Analysis</span>
+          </div>
+          <div class="chart-canvas-wrapper">
+            <canvas id="sectionChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row 2 -->
+      <div class="charts-grid">
+        <!-- Chart 3: Wattage Failure Distribution -->
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <div class="chart-title">
+              <span>⚡ Available Wattage Lamp Failure Distribution (Deficit Count)</span>
+            </div>
+            <span class="kpi-badge badge-warning">Deficit Impact</span>
+          </div>
+          <div class="chart-canvas-wrapper">
+            <canvas id="wattageChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 4: CCMS Health Tiers -->
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <div class="chart-title">
+              <span>🛡️ CCMS Control Panel Health Distribution</span>
+            </div>
+            <span class="kpi-badge badge-success">Panel Reliability</span>
+          </div>
+          <div class="chart-canvas-wrapper">
+            <canvas id="tiersChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wattage Analysis Table -->
+      <div class="table-card">
+        <div class="table-card-header">
+          <div>
+            <h3 class="table-title">💡 Available Lamp Failure Analysis by Wattage Rating</h3>
+            <p class="table-subtitle">Granular performance data across all highway lamp ratings installed on PIU Chengalpattu corridor</p>
+          </div>
+          <span class="kpi-badge badge-warning">Critical Stock Recommendation</span>
+        </div>
+        <div class="table-responsive">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Lamp Rating</th>
+                <th>Total Installed</th>
+                <th>Burning Lamps</th>
+                <th>Non-Burning (Failed)</th>
+                <th>Burning %</th>
+                <th>Failure %</th>
+                <th>Outage Share %</th>
+                <th>Deficit Load (kW)</th>
+                <th>Replacement Stock Priority</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for w in summary.wattages %}
+              <tr>
+                <td><strong style="color: var(--nhai-gold);">{{ w.rating }}</strong></td>
+                <td>{{ "{:,}".format(w.total_installed) }}</td>
+                <td style="color: var(--status-green); font-weight: 600;">{{ "{:,}".format(w.burning_lamps) }}</td>
+                <td style="color: {% if w.non_burning_lamps > 0 %}var(--status-red){% else %}var(--text-muted){% endif %}; font-weight: 700;">
+                  {{ w.non_burning_lamps }}
+                </td>
+                <td>{{ w.burning_percentage }}%</td>
+                <td style="color: {% if w.failure_percentage > 10 %}var(--status-red){% elif w.failure_percentage > 5 %}var(--status-amber){% else %}var(--status-green){% endif %};">
+                  {{ w.failure_percentage }}%
+                </td>
+                <td><strong>{{ w.outage_share_percentage }}%</strong></td>
+                <td>{{ w.deficit_load_kw }} kW</td>
+                <td>
+                  <span class="kpi-badge {% if 'CRITICAL' in w.priority_status %}badge-danger{% elif 'HIGH' in w.priority_status %}badge-warning{% elif 'MEDIUM' in w.priority_status %}badge-blue{% else %}badge-success{% endif %}">
+                    {{ w.priority_status }}
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td>TOTAL RATINGS</td>
+                <td>{{ "{:,}".format(summary.kpis.total_connected_lamps) }}</td>
+                <td style="color: var(--status-green);">{{ "{:,}".format(summary.kpis.burning_lamps) }}</td>
+                <td style="color: var(--status-red);">{{ summary.kpis.non_burning_lamps }}</td>
+                <td>{{ summary.kpis.burning_percentage }}%</td>
+                <td>{{ summary.kpis.non_burning_percentage }}%</td>
+                <td>100.0%</td>
+                <td>{{ summary.kpis.deficit_load_kw }} kW</td>
+                <td><span class="kpi-badge badge-danger">{{ summary.kpis.non_burning_lamps }} LAMPS DOWN</span></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ====================================================================
+         TAB 2: PRIORITY ACTION LIST & SLA SIMULATOR
+         ==================================================================== -->
+    <section class="tab-content" id="tab-priority">
+
+      <!-- Interactive SLA Simulator Engine -->
+      <div class="simulator-panel">
+        <div class="sim-info">
+          <h3>⚡ Interactive SLA Rectification Simulator ("What-If" Engine)</h3>
+          <p>
+            Simulate the impact of deploying maintenance flying squads to prioritized CCMS panels.
+            Selecting the top 5 problem panels immediately recovers <strong>119 lamps</strong> and vaults network uptime across the <strong>&gt;95.0% SLA hurdle</strong>!
+          </p>
+          <div class="sim-controls">
+            <button class="btn btn-gold" id="simTop5Btn">🚀 Simulate Top 5 Panels (+4.41%)</button>
+            <button class="btn btn-primary" id="simTop15Btn">🌟 Simulate Top 15 Panels (+7.57%)</button>
+            <button class="btn btn-secondary" id="simResetBtn">🔄 Reset to Current State</button>
+          </div>
+        </div>
+
+        <div class="sim-meter-card">
+          <div class="sim-meter-header">
+            <span style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700;">
+              Simulated Network Burning Ratio
+            </span>
+            <span id="simSlaBadge" class="kpi-badge badge-warning">⚠ CURRENT: DEFICIT (90.65%)</span>
+          </div>
+          
+          <div style="display: flex; align-items: baseline; justify-content: space-between;">
+            <div id="simBurningVal" class="sim-rate-val">{{ summary.kpis.burning_percentage }}%</div>
+            <div style="text-align: right; font-size: 0.85rem; color: var(--text-secondary);">
+              Baseline: <strong>90.65%</strong> | SLA Target: <strong>95.0%</strong>
+            </div>
+          </div>
+
+          <div class="progress-track" style="height: 10px;">
+            <div id="simProgressBar" class="progress-bar-fill progress-warning" style="width: {{ summary.kpis.burning_percentage }}%;"></div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; text-align: center; margin-top: 0.25rem;">
+            <div style="background: var(--bg-surface); padding: 0.5rem; border-radius: var(--radius-sm);">
+              <span style="font-size: 0.7rem; color: var(--text-muted); display: block;">Lamps Restored</span>
+              <strong id="simRecoveredLamps" style="color: var(--status-green); font-size: 1.05rem;">+0</strong>
+            </div>
+            <div style="background: var(--bg-surface); padding: 0.5rem; border-radius: var(--radius-sm);">
+              <span style="font-size: 0.7rem; color: var(--text-muted); display: block;">Load Recovered</span>
+              <strong id="simRecoveredKw" style="color: var(--status-green); font-size: 1.05rem;">+0 kW</strong>
+            </div>
+            <div style="background: var(--bg-surface); padding: 0.5rem; border-radius: var(--radius-sm);">
+              <span style="font-size: 0.7rem; color: var(--text-muted); display: block;">Remaining Deficit</span>
+              <strong id="simDeficitKw" style="color: var(--status-red); font-size: 1.05rem;">{{ summary.kpis.deficit_load_kw }} kW</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Priority Action List Table -->
+      <div class="table-card">
+        <div class="table-card-header">
+          <div>
+            <h3 class="table-title">🚨 Priority Action List: Top CCMS Panels With Active Failures</h3>
+            <p class="table-subtitle">Resolving these 15 panels eliminates 81.0% of all corridor outages, driving network SLA to 98.22%</p>
+          </div>
+          <span class="kpi-badge badge-danger">Immediate Rectification Mandate</span>
+        </div>
+        <div class="table-responsive">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th style="width: 40px; text-align: center;">Simulate</th>
+                <th>Rank</th>
+                <th>CCMS Panel ID</th>
+                <th>Section</th>
+                <th>Ward</th>
+                <th>Connected Lamps</th>
+                <th>Non-Burning</th>
+                <th>Burning %</th>
+                <th>Unserved Load</th>
+                <th>Corridor Impact</th>
+                <th>Mandated Field Engineering Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in summary.priority_action_list %}
+              <tr>
+                <td style="text-align: center;">
+                  <input type="checkbox" class="priority-sim-checkbox" data-id="{{ p.ccms_id }}" style="cursor: pointer; width: 16px; height: 16px;">
+                </td>
+                <td><strong style="color: var(--nhai-gold); font-size: 1rem;">#{{ p.rank }}</strong></td>
+                <td><strong style="color: #38bdf8; font-family: var(--font-display);">{{ p.ccms_id }}</strong></td>
+                <td>{{ p.section }}</td>
+                <td>{{ p.ward }}</td>
+                <td>{{ p.connected_lamps }}</td>
+                <td style="color: var(--status-red); font-weight: 800; font-size: 0.95rem;">{{ p.non_burning_lamps }}</td>
+                <td>
+                  <span style="color: {% if p.burning_percentage < 50 %}var(--status-red){% elif p.burning_percentage < 70 %}var(--status-amber){% else %}var(--status-green){% endif %}; font-weight: 700;">
+                    {{ p.burning_percentage }}%
+                  </span>
+                </td>
+                <td>{{ p.unserved_load_w }} W</td>
+                <td>
+                  <span class="kpi-badge {% if 'CRITICAL' in p.corridor_impact %}badge-danger{% elif 'HIGH' in p.corridor_impact %}badge-warning{% else %}badge-blue{% endif %}">
+                    {{ p.corridor_impact }}
+                  </span>
+                </td>
+                <td style="color: var(--text-secondary); max-width: 320px; white-space: normal;">
+                  {{ p.action_required }}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="5"><strong>SUBTOTAL: Top 15 Problem Panels</strong></td>
+                <td><strong>579 Lamps</strong></td>
+                <td style="color: var(--status-red); font-size: 1.05rem;"><strong>{{ summary.priority_subtotal.top15_outages }} Outages</strong></td>
+                <td colspan="2"><span class="kpi-badge badge-danger">81.0% OF ALL CORRIDOR DEFICITS</span></td>
+                <td colspan="2" style="color: var(--status-green); font-weight: 700;">
+                  Resolving these 15 panels lifts network burning rate to 98.22%!
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ====================================================================
+         TAB 3: CCMS PANEL INVENTORY EXPLORER
+         ==================================================================== -->
+    <section class="tab-content" id="tab-panels">
+
+      <div class="table-card">
+        <div class="table-card-header">
+          <div>
+            <h3 class="table-title">🗂️ Complete CCMS Panel Inventory Explorer</h3>
+            <p class="table-subtitle" id="panelsCountLabel">Monitoring 106 control panels across PIU Chengalpattu highway network</p>
+          </div>
+
+          <!-- Filter Toolbar -->
+          <div class="filter-bar">
+            <div class="search-input-wrapper">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="panelSearchInput" class="search-input" placeholder="Search Panel ID, Section, Ward...">
+            </div>
+
+            <select id="sectionFilterSelect" class="filter-select">
+              <option value="all">All Sections</option>
+              <option value="Section-1">Section-1 (Ward 28-53)</option>
+              <option value="Section-2">Section-2 (Ward 54-102)</option>
+              <option value="Section-3">Section-3 (Ward 103-120)</option>
+            </select>
+
+            <select id="healthFilterSelect" class="filter-select">
+              <option value="all">All Health Categories</option>
+              <option value="optimal">100% Burning (Optimal)</option>
+              <option value="minor">90% - 99% Minor Deficit</option>
+              <option value="moderate">70% - 89% Moderate Deficit</option>
+              <option value="critical">&lt; 70% Critical Outage</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th data-sort="ccms_id" style="cursor: pointer;">CCMS Panel ID ↕</th>
+                <th data-sort="section" style="cursor: pointer;">Section ↕</th>
+                <th data-sort="ward" style="cursor: pointer;">Ward ↕</th>
+                <th data-sort="connected_lights" style="cursor: pointer;">Connected ↕</th>
+                <th data-sort="burning_lights" style="cursor: pointer;">Burning ↕</th>
+                <th data-sort="non_burning_lights" style="cursor: pointer;">Failures ↕</th>
+                <th data-sort="burning_percentage" style="cursor: pointer;">Burning Ratio ↕</th>
+                <th data-sort="connected_load_w" style="cursor: pointer;">Conn. Load ↕</th>
+                <th data-sort="non_burning_load_w" style="cursor: pointer;">Deficit Load ↕</th>
+                <th>Health Status</th>
+                <th style="text-align: center;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="panelsTableBody">
+              <!-- Dynamically populated via dashboard.js fetchPanels() -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="pagination-controls">
+          <span style="font-size: 0.82rem; color: var(--text-secondary);" id="pageIndicator">Page 1 of 6</span>
+          <div class="pagination-pages">
+            <button class="btn btn-secondary" id="prevPageBtn">Previous</button>
+            <button class="btn btn-secondary" id="nextPageBtn">Next</button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ====================================================================
+         TAB 4: EXECUTIVE DIRECTIVES & ACTION PLAN
+         ==================================================================== -->
+    <section class="tab-content" id="tab-directives">
+
+      <div style="margin-bottom: 1.5rem;">
+        <h3 style="font-family: var(--font-display); font-size: 1.3rem; margin-bottom: 0.4rem;">
+          📑 Executive Engineering Brief &amp; Action Directives
+        </h3>
+        <p style="font-size: 0.88rem; color: var(--text-secondary);">
+          Official report extract and technical observations prepared for NHAI Project Director &amp; Executive Engineers.
+        </p>
+      </div>
+
+      <div class="directives-container">
+        {% for section in summary.executive_directives %}
+        <div class="directive-card">
+          <div class="directive-header">
+            <span class="directive-title">
+              <span style="color: var(--nhai-gold);">🛡️</span>
+              <span>{{ section.title }}</span>
+            </span>
+            <span style="color: var(--text-muted); font-size: 0.85rem;">Official Engineering Audit</span>
+          </div>
+          <div class="directive-body">
+            {% for item in section['items'] %}
+            <div class="directive-point">
+              <div>{{ item }}</div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ======================================================================
+       MODALS
+       ====================================================================== -->
+  
+  <!-- Upload Telemetry Excel Modal -->
+  <div class="modal-backdrop" id="uploadModal" role="dialog" aria-modal="true" aria-labelledby="uploadModalTitle">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="uploadModalTitle">📤 Ingest Telemetry Excel (.xlsx)</h3>
+        <button class="icon-btn" id="closeUploadModalBtn">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+          Upload an updated CCMS failure report workbook. The system will automatically recalculate the KPI metrics, section analytics, and priority lists in real-time.
+        </p>
+
+        <div class="dropzone-area" id="excelDropzone">
+          <div class="dropzone-icon">📊</div>
+          <p style="font-weight: 700; margin-bottom: 0.35rem;">Drag &amp; drop telemetry Excel file here</p>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">or click to browse from your computer (.xlsx, .xls)</p>
+          <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display: none;">
+        </div>
+
+        <div id="uploadStatus" style="margin-top: 1rem; font-size: 0.85rem; text-align: center;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="document.getElementById('uploadModal').classList.remove('active')">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Single Panel Telemetry Detail Modal -->
+  <div class="modal-backdrop" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailModalTitle">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="detailModalTitle">🔍 CCMS Panel Telemetry Details</h3>
+        <button class="icon-btn" id="closeDetailModalBtn">✕</button>
+      </div>
+      <div class="modal-body" id="detailModalBody">
+        <!-- Dynamically rendered via showPanelTelemetryModal() -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="document.getElementById('detailModal').classList.remove('active')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="nhai-footer">
+    <div class="footer-container">
+      <div>
+        <strong>National Highways Authority of India (NHAI)</strong> • PIU Chengalpattu Telemetry System
+      </div>
+      <div>
+        Operational Standard: MoRTH Highway Lighting Specification • SLA Target: &gt;95.0% Burning Ratio
+      </div>
+      <div>
+        Engine: Python 3 / FastAPI • Production Deployment on Render
+      </div>
+    </div>
+  </footer>
+
+  <!-- Pass server pre-computed data to client JS -->
+  <script>
+    window.__INITIAL_SUMMARY__ = {{ summary | tojson | safe }};
+  </script>
+  <!-- Main Interactive Controller -->
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
